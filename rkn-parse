@@ -1,0 +1,93 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use XML::Simple;
+use Data::Dumper;
+
+die "Usage: $0 dump.xml\n" if @ARGV < 1;
+
+$XML::Simple::PREFERRED_PARSER = 'XML::Parser';
+
+my $ref = XMLin(shift @ARGV);
+
+sub hash2file($$) {
+	my ($data, $filename) = @_;
+	return if not $filename;
+	open F, '>', $filename or die "Cannot create file $filename: $!\n";
+	binmode F, ":utf8";
+	print F "$_\n" foreach sort keys %$data;
+	close F;
+}
+
+my ($urlfile, $domfile, $dommask_file, $ipfile, $netfile) = @ARGV;
+#print "Result = ",Dumper($ref),"\n";
+
+my %urls;
+my %domains;
+my %domain_masks;
+my %ipaddrs;
+my %ipnets;
+
+sub content($) {
+	my $val = shift;
+	$val = (ref($val) eq 'HASH') ? $val->{content} : $val;
+	$val =~ s/^[\n\r]+//;
+	$val =~ s/[\n\r]+$//;
+	return $val;
+}
+
+sub read_values($$);
+
+sub read_values($$) {
+	my ($id, $value) = @_;
+	my @result;
+	if (ref($value) eq 'ARRAY') {
+		push @result, read_values($id, $_) foreach @$value;
+		return @result;
+	}
+	return ($value->{content}) if ref($value);
+	return $value if $value;
+	return ();
+}
+
+while (my ($id, $item) = each %{$ref->{content}}) {
+	my $typ = $item->{blockType};
+	if (!defined($typ)) {
+
+		my @u = read_values $id, $item->{url};
+		warn "WARNING: Missing URL for item $id, skipped.\n" if not @u;
+		$urls{content $_} = 1 foreach @u;
+
+	} elsif($typ eq 'domain') {
+
+		my @d = read_values $id, $item->{domain};
+		warn "WARNING: Missing domain for item $id, skipped.\n" if not @d;
+		$domains{content $_} = 1 foreach @d;
+
+	} elsif($typ eq 'domain-mask') {
+
+		my @m = read_values $id, $item->{domain};
+		warn "WARNING: Missing domain for item $id, skipped.\n" if not @m;
+		$domain_masks{content $_} = 1 foreach @m;
+
+	} elsif($typ eq 'ip') {
+
+		my @a = read_values($id, $item->{ip});       $ipaddrs{$_} = 1 foreach @a;
+		my @b = read_values($id, $item->{ipSubnet});  $ipnets{$_} = 1 foreach @b;
+
+		warn "WARNING: missing IP in item $id, skipped\n" if not @a and not @b;
+
+	} else {
+		warn "WARNING: Unknown blocktype $typ for item $id, skipped.\n";
+	}
+}
+
+hash2file(\%urls,         $urlfile);
+hash2file(\%domains,      $domfile);
+hash2file(\%domain_masks, $dommask_file);
+hash2file(\%ipaddrs,      $ipfile);
+hash2file(\%ipnets,       $netfile);
+
+## END ##

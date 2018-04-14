@@ -1,0 +1,49 @@
+#!/bin/sh
+
+######  Variables  #############################################
+
+EXT_IFACE="ens256"           # TODO: calculate!!
+EXT_IPADDR="213.159.127.30"  # TODO: calculate!!
+
+ HTTP_PORTS="80,81,8080,8081"
+HTTPS_PORTS="443,16869"
+
+######  Cleanup  ###############################################
+
+iptables -F
+iptables -X
+iptables -F -t nat
+iptables -X -t nat
+
+iptables -P INPUT   ACCEPT
+iptables -P OUTPUT  ACCEPT
+iptables -P FORWARD DROP
+
+ipset destroy
+
+TBLSIZE="$(expr 1024 \* 1024)"
+ipset create block_ipaddrs hash:ip  hashsize $TBLSIZE maxelem $TBLSIZE
+ipset create block_ipnets  hash:net
+
+######  Input  #################################################
+
+iptables -A INPUT -i lo           -j ACCEPT
+iptables -A INPUT -s 127.0.0.0/8  -j DROP
+iptables -A INPUT -p icmp         -j ACCEPT
+iptables -A INPUT -i "$EXT_IFACE" -j DROP
+
+######  Forward  ###############################################
+
+iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A FORWARD -i "$EXT_IFACE" -j DROP
+iptables -A FORWARD -o "$EXT_IFACE" -j REJECT -m set --match-set block_ipaddrs dst
+iptables -A FORWARD -o "$EXT_IFACE" -j REJECT -m set --match-set block_ipnets  dst
+
+######  NAT  ###################################################
+
+iptables -t nat -A POSTROUTING    -o "$EXT_IFACE" -j SNAT --to-source "$EXT_IPADDR"
+
+iptables -t nat -A PREROUTING '!' -i "$EXT_IFACE" -p tcp -m multiport --dports "$HTTP_PORTS"  -j REDIRECT --to-ports 3129
+iptables -t nat -A PREROUTING '!' -i "$EXT_IFACE" -p tcp -m multiport --dports "$HTTPS_PORTS" -j REDIRECT --to-ports 3130
+
+## END ##

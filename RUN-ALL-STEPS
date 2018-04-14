@@ -1,0 +1,64 @@
+#!/bin/sh
+
+T=$(date +%Y-%m-%d-%H%M)
+
+TOP="$(cd "$(dirname "$0")/.." && pwd)" #"
+BIN="$TOP/bin"
+DAT="$TOP/download"
+LOG="$TOP/logs/$T.log"
+OLD="$TOP/old/$T.zip"
+CFG="$BIN/config"
+
+######  Functions  #############################################
+
+Say() { date "+%Y-%m-%d %H:%M:%S -- $@"; }
+
+Fail() { echo "ERROR: $@"; exit 1; }
+
+Check_lines_count() {
+    local count="$(wc -l < "$1" 2>/dev/null)"
+    test -n "$count" -a "$count" -ge "$2" -a "$count" -le "$3" && return
+    Fail "Wrong lines count in $1, must be between $2 and $3: $count"
+}
+
+######  Main  ##################################################
+
+exec 1>"$LOG"
+exec 2>&1
+
+cd "$DAT"
+
+Say "Fetch..."
+   $BIN/rkn-fetch "$CFG" update result.zip
+   grep -q "^FRESH_OK" "$LOG" && Say "SKIPPED." && exit 0
+   unzip -t result.zip || Fail "ZIP check failed."
+
+Say "Extract..."
+   cp -p result.zip "$OLD"
+   funzip < result.zip | sed 's,><,>\n<,g' > dump.xml
+   Check_lines_count dump.xml 100000 10000000
+
+Say "Parse..."
+   $BIN/rkn-parse   dump.xml   u.lst d.lst m.lst a.lst n.lst
+   $BIN/rkn-filter  d.lst m.lst u.lst   dd.lst uu.lst pp.lst
+
+Say "Check lines count..."
+   Check_lines_count   a.lst  1000  10000
+   Check_lines_count   n.lst     1    100
+   Check_lines_count  dd.lst 10000 500000
+   Check_lines_count  uu.lst 10000 100000
+   Check_lines_count  pp.lst     2    100
+
+Say "Apply ipset..."
+   $BIN/ipset-sync  a.lst  n.lst
+
+Say "Apply Squid..."
+   cp -p  dd.lst  /etc/squid/blacklist_domains.txt
+   cp -p  uu.lst  /etc/squid/blacklist_urls.txt
+
+   /usr/sbin/squid -k parse 2>&1 | grep "ERROR:" && Fail "Invalid Squid configs"
+   /usr/sbin/squid -k reconfigure
+
+Say "DONE."
+
+## END ##

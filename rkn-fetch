@@ -1,0 +1,154 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use POSIX 'strftime';
+use Config::Tiny;
+use Data::Dumper;
+use MIME::Base64;
+use SOAP::Lite;
+
+use FindBin;
+use lib $FindBin::Bin;
+
+my $Config;
+my $SOAP;
+
+sub read_config($) {
+	my $cfgfile = shift;
+
+	$Config = Config::Tiny->read($cfgfile) or die "ERROR: cannot read $cfgfile: ".Config::Tiny->errstr."\n";
+	$Config = $Config->{_} or die "ERROR: empty config $cfgfile\n";
+
+	$Config->{$_} || die "ERROR: missing $_ in $cfgfile\n" foreach qw/REQUEST_KEY REQUEST_SIG/;
+
+	$Config->{REQUEST_KEY_CONTENTS} = read_file($Config->{REQUEST_KEY});
+	$Config->{REQUEST_SIG_CONTENTS} = read_file($Config->{REQUEST_SIG});
+}
+
+sub init_soap() {
+	eval {
+		$SOAP = SOAP::Lite->new(
+			proxy => $Config->{SOAP_URI} ||= "http://vigruzki.rkn.gov.ru/services/OperatorRequest/",
+			ns    => $Config->{SOAP_NS}  ||= "http://vigruzki.rkn.gov.ru/OperatorRequest/",
+		);
+	};
+	die "SOAP init exception: $@\n" if $@;
+}
+
+sub read_file($) {
+	my $fname = shift;
+	local $/ = undef;
+	open F, "<", $fname or die "Cannot open $fname: $!\n";
+	my $contents = <F>;
+	close F;
+	return $contents;
+}
+
+sub soap_call {
+	my $resp;
+
+	print "SOAP call: $_[0]\n";
+
+	eval { $resp = $SOAP->call(@_) };
+
+	die "SOAP exception: $@\n"   if $@;
+	die "SOAP empty response!\n" if !defined($resp);
+	die "SOAP error ".$resp->faultcode().": ".$resp->faultstring()." (".$resp->faultdetail().")\n"
+	                             if $resp->fault();
+	return $resp;
+}
+
+sub send_request() {
+	my $resp = soap_call("sendRequest",
+		SOAP::Data->name("requestFile"       => $Config->{REQUEST_KEY_CONTENTS})->type("base64Binary"),
+		SOAP::Data->name("signatureFile"     => $Config->{REQUEST_SIG_CONTENTS})->type("base64Binary"),
+		SOAP::Data->name("dumpFormatVersion" => "2.2"                          )->type("string"),
+	);
+
+	$resp = $resp->body()->{sendRequestResponse};
+
+	die "SOAP error: $resp->{resultComment}\n" if $resp->{result} ne 'true';
+
+	print "SOAP request is sent, code = ".$resp->{code}."\n";
+
+	return $resp->{code};
+}
+
+sub get_result($) {
+	my $code = shift;
+	my $delay = 90;
+
+	for my $iter (1..100) {
+		print "Sleep $delay seconds and try attempt #$iter ...\n";
+		sleep($delay);
+
+		my $resp = soap_call("getResult", SOAP::Data->name("code" => $code));
+
+		$resp = $resp->body()->{getResultResponse};
+		printf "ResultCode = %s, ResultComment = %s\n", $resp->{resultCode}, $resp->{resultComment} || '';
+
+		return decode_base64($resp->{registerZipArchive})
+			if $resp->{result} eq "true" and $resp->{resultCode} > 0;
+		warn "ResultComment = $resp->{resultComment}\n";
+	}
+	die "ERROR: getResult failed.\n";
+}
+
+sub need_update($;$) {
+	my ($tstamp_file, $debug) = @_;
+
+	my $resp = soap_call("getLastDumpDateEx");
+	my $info = $resp->body()->{getLastDumpDateExResponse};
+
+	print "RKN Info = ", Dumper($info), "\n" if $debug;
+
+	return "NEED_CREATE"            if not $tstamp_file or not -e $tstamp_file;
+	my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,$atime,$mtime,$ctime,$blksize,$blocks) = stat($tstamp_file);
+	#printf "DEBUG: mtime = %s, dtu = %s, dt = %s\n", $mtime, $info->{lastDumpDateUrgently}, $info->{lastDumpDate};
+	return "NEED_URGENTLY_UPDATE\n" if $mtime < $info->{lastDumpDateUrgently} / 1000;
+	return "NEED_UPDATE\n"          if $mtime < $info->{lastDumpDate}         / 1000;
+	undef;
+}
+
+sub getinfo {
+	my $tstamp_file = shift;
+	printf "%s\n", need_update($tstamp_file, 1) || "FRESH_OK";
+}
+
+sub getdata {
+	my $destfile = shift || $Config->{DESTFILE} or die "ERROR: missing destination file\n";
+	open F, '>', $destfile or die "ERROR: cannot create $destfile: $!\n";
+
+	my $code = send_request();
+	my $data = get_result($code);
+
+	print F $data;
+	close F;
+}
+
+sub update {
+	my $destfile = shift || $Config->{DESTFILE} or die "ERROR: missing destination file\n";
+	my $tstamp_file = shift || $destfile;
+
+	return getdata($destfile) if need_update($tstamp_file);
+	print "FRESH_OK\n";
+}
+
+########################################################################
+
+die "Usage: $0 config-file [command [args...]]\n" if @ARGV < 1;
+
+read_config(shift @ARGV);
+
+init_soap();
+
+my $command = @ARGV ? shift @ARGV : 'info';
+
+if    ($command eq 'update') {  update(@ARGV) }  # optional args = destination_filepath, timestamp_file
+elsif ($command eq 'force' ) { getdata(@ARGV) }  # optional args = destination_filepath
+elsif ($command eq 'info'  ) { getinfo(@ARGV) }  # optional args = timestamp_file
+else  { die "Wrong command $command, must be info, update or force\n" }
+
+## END ##

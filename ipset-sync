@@ -1,0 +1,36 @@
+#!/bin/sh
+
+which ipset >/dev/null || { echo "ERROR: missing ipset binary"; exit 1; }
+
+test $# = 2 || { echo "Usage: ${0##*/} filelist-addrs filelist-nets"; exit; }
+
+list_addrs="$1"
+ list_nets="$2"
+
+NEW="$(date +%s)-$$"
+
+not_empty() {
+	test -z "$1" && return 1
+	local N="$(wc -l < "$1" 2>/dev/null)"
+	test -n "$N" -a "$N" -gt 0
+}
+
+file2ipset() {
+	local ipset_name="$1" file="$2"
+	while read a; do ipset -A "$NEW" "$a"; done < "$file"
+	ipset -W "$NEW" "$ipset_name"  # ..swap
+	ipset -X "$NEW"                # ..delete old
+}
+
+if not_empty "$list_addrs"; then
+	TBLSIZE="$(expr 1024 \* 1024)"
+	ipset create "$NEW" hash:ip hashsize "$TBLSIZE" maxelem "$TBLSIZE"
+	file2ipset block_ipaddrs "$list_addrs"
+fi
+
+if not_empty "$list_nets"; then
+	ipset create "$NEW" hash:net
+	file2ipset block_ipnets "$list_nets"
+fi
+
+## END ##

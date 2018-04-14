@@ -1,0 +1,102 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+die "Usage: $0 domains-list dommask-list urls-list dest-domains dest-urls dest-ports\n" if @ARGV != 6;
+
+sub file2hash($) {
+	open F, $_[0] or die "ERROR: cannot open file $_[0]: $!\n";
+	my %result = map { chomp; $_ => 1 } <F>;
+	close F;
+	printf "Read %s = %d lines\n", $_[0], scalar keys %result;
+	\%result;
+}
+
+my $domains = file2hash($ARGV[0]);
+my $dommask = file2hash($ARGV[1]);
+my $urls    = file2hash($ARGV[2]);
+
+######  Convert URLs to domains  #######################################
+
+while (($_, undef) = each %$urls) {
+	next unless /^[^\/]+:\/+([^\/]+)\/*$/;
+	#print "URL is domain: $1, $_\n";
+	#print "Reuse domain: $1\n" if $domains->{$1};
+	$domains->{$1} = 1;
+	delete $urls->{$_};
+}
+
+printf "Domains after URL conversion = %s\n", scalar keys %$domains;
+printf "URLs after conversion to domains = %s\n", scalar keys %$urls;
+
+
+######  Normalize domain masks  ########################################
+
+my %aa = map { s/^\*\.//; $_ => 1 } grep { /^\*\./ } keys %$dommask;
+warn "WARNING: Invalid domain masks skipped\n"
+	if scalar keys %aa != scalar keys %$dommask;
+$dommask = \%aa;
+printf "Domain masks after normalization = %s\n", scalar keys %$dommask;
+
+
+######  Exclude domains and long masks overlapped by short masks  ######
+
+sub is_masked($;$);
+
+sub is_masked($;$) {
+	local $_ = shift;
+	my $skip1st = shift;
+	return 1 if not $skip1st and $dommask->{$_};
+	return 1 if /^[^\.]+\.(.+)$/ and is_masked($1);
+	return 0;
+}
+
+my %bb = map { $_ => 1 } grep { !is_masked($_, 1) } keys %$dommask;
+$dommask = \%bb;
+printf "Domain masks after deoverlapping = %s\n", scalar keys %$dommask;
+
+my %cc = map { $_ => 1 } grep { !is_masked($_) } keys %$domains;
+$domains = \%cc;
+printf "Domains after deoverlapping = %s\n", scalar keys %$domains;
+
+
+######  Get ports  #####################################################
+
+my %pp = ( 80 => 'http', 443 => 'https' );
+
+while (($_, undef) = each %$urls) {
+	next unless /^([[:alnum:]]+):\/+[^\/]+:(\d+)/;
+	next if $pp{$2};
+	$pp{$2} = $1;
+}
+
+my %ports = map { $_.' '.$pp{$_} => 1 } sort keys %pp;
+
+
+######  Prepare results for Squid  #####################################
+
+# Join domains and masks into single hash, masks should be prefixed by '.'
+$domains->{'.'.$_} = 1 foreach keys %$dommask;
+
+# Builtin quotemeta function losses UTF-8 encoding, so use our own conversion...
+my %dd = map { s/([\|\&\^\$\\\/\.\?\+\*\(\)\[\]\{\}])/\\$1/g; '^'.$_ => 1 } keys %$urls;
+$urls = \%dd;
+
+
+######  Write results  #################################################
+
+sub hash2file($$) {
+	my ($hashref, $file) = @_;
+	open F, '>', $file or die "Cannot create file $file: $!\n";
+	print F "$_\n" foreach sort keys %$hashref;
+	close F;
+}
+
+hash2file($domains, $ARGV[3]);
+hash2file($urls,    $ARGV[4]);
+hash2file(\%ports,  $ARGV[5]);
+
+print "Done.\n";
+
+## END ##
