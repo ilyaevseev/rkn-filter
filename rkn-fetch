@@ -2,36 +2,19 @@
 
 use strict;
 use warnings;
+use utf8;
 
-use POSIX 'strftime';
-use Config::Tiny;
 use Data::Dumper;
 use MIME::Base64;
 use SOAP::Lite;
 
-use FindBin;
-use lib $FindBin::Bin;
-
-my $Config;
-my $SOAP;
-
-sub read_config($) {
-	my $cfgfile = shift;
-
-	$Config = Config::Tiny->read($cfgfile) or die "ERROR: cannot read $cfgfile: ".Config::Tiny->errstr."\n";
-	$Config = $Config->{_} or die "ERROR: empty config $cfgfile\n";
-
-	$Config->{$_} || die "ERROR: missing $_ in $cfgfile\n" foreach qw/REQUEST_KEY REQUEST_SIG/;
-
-	$Config->{REQUEST_KEY_CONTENTS} = read_file($Config->{REQUEST_KEY});
-	$Config->{REQUEST_SIG_CONTENTS} = read_file($Config->{REQUEST_SIG});
-}
+my ($SOAP, $key, $sig);
 
 sub init_soap() {
 	eval {
 		$SOAP = SOAP::Lite->new(
-			proxy => $Config->{SOAP_URI} ||= "http://vigruzki.rkn.gov.ru/services/OperatorRequest/",
-			ns    => $Config->{SOAP_NS}  ||= "http://vigruzki.rkn.gov.ru/OperatorRequest/",
+			proxy => "http://vigruzki.rkn.gov.ru/services/OperatorRequest/",
+			ns    => "http://vigruzki.rkn.gov.ru/OperatorRequest/",
 		);
 	};
 	die "SOAP init exception: $@\n" if $@;
@@ -62,9 +45,9 @@ sub soap_call {
 
 sub send_request() {
 	my $resp = soap_call("sendRequest",
-		SOAP::Data->name("requestFile"       => $Config->{REQUEST_KEY_CONTENTS})->type("base64Binary"),
-		SOAP::Data->name("signatureFile"     => $Config->{REQUEST_SIG_CONTENTS})->type("base64Binary"),
-		SOAP::Data->name("dumpFormatVersion" => "2.2"                          )->type("string"),
+		SOAP::Data->name("requestFile"       => $key )->type("base64Binary"),
+		SOAP::Data->name("signatureFile"     => $sig )->type("base64Binary"),
+		SOAP::Data->name("dumpFormatVersion" => "2.2")->type("string"),
 	);
 
 	$resp = $resp->body()->{sendRequestResponse};
@@ -80,7 +63,7 @@ sub get_result($) {
 	my $code = shift;
 	my $delay = 90;
 
-	for my $iter (1..100) {
+	for my $iter (1..5) {
 		print "Sleep $delay seconds and try attempt #$iter ...\n";
 		sleep($delay);
 
@@ -109,7 +92,7 @@ sub need_update($;$) {
 	#printf "DEBUG: mtime = %s, dtu = %s, dt = %s\n", $mtime, $info->{lastDumpDateUrgently}, $info->{lastDumpDate};
 	return "NEED_URGENTLY_UPDATE\n" if $mtime < $info->{lastDumpDateUrgently} / 1000;
 	return "NEED_UPDATE\n"          if $mtime < $info->{lastDumpDate}         / 1000;
-	undef;
+	return 0;
 }
 
 sub getinfo {
@@ -118,7 +101,7 @@ sub getinfo {
 }
 
 sub getdata {
-	my $destfile = shift || $Config->{DESTFILE} or die "ERROR: missing destination file\n";
+	my $destfile = shift or die "ERROR: missing destination file\n";
 	open F, '>', $destfile or die "ERROR: cannot create $destfile: $!\n";
 
 	my $code = send_request();
@@ -129,7 +112,7 @@ sub getdata {
 }
 
 sub update {
-	my $destfile = shift || $Config->{DESTFILE} or die "ERROR: missing destination file\n";
+	my $destfile = shift or die "ERROR: missing destination file\n";
 	my $tstamp_file = shift || $destfile;
 
 	return getdata($destfile) if need_update($tstamp_file);
@@ -138,9 +121,13 @@ sub update {
 
 ########################################################################
 
-die "Usage: $0 config-file [command [args...]]\n" if @ARGV < 1;
+die "Usage: $0 keyfile sigfile [command [args...]]\n" if @ARGV < 2;
 
-read_config(shift @ARGV);
+binmode(STDOUT,':utf8');
+binmode(STDERR,':utf8');
+
+$key = read_file(shift @ARGV);
+$sig = read_file(shift @ARGV);
 
 init_soap();
 
