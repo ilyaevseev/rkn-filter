@@ -1,5 +1,6 @@
 #!/bin/sh
 
+export PATH="$PATH:/usr/sbin"  # ..needed under cron
 which ipset >/dev/null || { echo "ERROR: missing ipset binary"; exit 1; }
 
 test $# = 2 || { echo "Usage: ${0##*/} filelist-addrs filelist-nets"; exit; }
