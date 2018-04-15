@@ -7,13 +7,14 @@ BIN="$TOP/bin"
 DAT="$TOP/download"
 LOG="$TOP/logs/$T.log"
 OLD="$TOP/old/$T.zip"
-CFG="$BIN/config"
+KEY="$TOP/keys/request.xml"
+SIG="$KEY.p7s"
 
 ######  Functions  #############################################
 
 Say() { date "+%Y-%m-%d %H:%M:%S -- $@"; }
 
-Fail() { echo "ERROR: $@"; exit 1; }
+Fail() { echo "FATAL ERROR: $@"; exit 1; }
 
 Check_lines_count() {
     local count="$(wc -l < "$1" 2>/dev/null)"
@@ -28,17 +29,24 @@ exec 2>&1
 
 cd "$DAT"
 
+Say "Check another instances..."
+   procname="$(basename "$0")"
+   procnum="$(pgrep -fc "$procname")"
+   test "$procnum" -gt 1 && Fail "$0 seems already running."
+
 Say "Fetch..."
-   $BIN/rkn-fetch "$CFG" update result.zip
+   $BIN/rkn-fetch "$KEY" "$SIG" update result.zip
    grep -q "^FRESH_OK" "$LOG" && Say "SKIPPED." && exit 0
    unzip -t result.zip || Fail "ZIP check failed."
 
 Say "Extract..."
    cp -p result.zip "$OLD"
-   funzip < result.zip | sed 's,><,>\n<,g' > dump.xml
+   #funzip < result.zip | sed 's,><,>\n<,g' > dump.xml
+   unzip -p result.zip dump.xml | sed 's,><,>\n<,g' > dump.xml
    Check_lines_count dump.xml 100000 10000000
 
 Say "Parse..."
+   find . -type f -name "*.lst" -delete
    $BIN/rkn-parse   dump.xml   u.lst d.lst m.lst a.lst n.lst
    $BIN/rkn-filter  d.lst m.lst u.lst   dd.lst uu.lst pp.lst
 
