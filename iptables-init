@@ -30,6 +30,7 @@ ipset create block_ipnets  hash:net
 iptables -A INPUT -i lo           -j ACCEPT
 iptables -A INPUT -s 127.0.0.0/8  -j DROP
 iptables -A INPUT -p icmp         -j ACCEPT
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 iptables -A INPUT -i "$EXT_IFACE" -j DROP
 
 ######  Forward  ###############################################
