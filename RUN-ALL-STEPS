@@ -65,7 +65,7 @@ Say "Apply Squid..."
    cp -p  uu.lst  /etc/squid/blacklist_urls.txt
 
    /usr/sbin/squid -k parse 2>&1 | grep "ERROR:" && Fail "Invalid Squid configs"
-   /usr/sbin/squid -k reconfigure
+   $BIN/squid-reload
 
 Say "DONE."
 

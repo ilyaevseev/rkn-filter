@@ -1,0 +1,27 @@
+#!/bin/sh
+
+CONFIG="/etc/squid/squid.second-instance.conf"
+
+echo PATH="$PATH:/usr/sbin"  # ..needed under Cron
+
+Wait_listen()     { for n in `seq 1 30`; do ss -ntl "sport = :$1" | grep -q ^LISTEN && return 0; sleep 1; done; echo "Timeout: wait_listen $1"    ; return 1; }
+Wait_not_listen() { for n in `seq 1 30`; do ss -ntl "sport = :$1" | grep -q ^LISTEN || return 0; sleep 1; done; echo "Timeout: wait_not_listen $1"; return 1; }
+
+if test -s "$CONFIG" && squid -f "$CONFIG" && Wait_listen "4130"; then
+    iptables-save | awk '/^-A PREROUTING .* 3129$/ { $1=$NF=""; print "iptables -t nat -I", $0, "4129"; exit }' | sh -
+    iptables-save | awk '/^-A PREROUTING .* 3130$/ { $1=$NF=""; print "iptables -t nat -I", $0, "4130"; exit }' | sh -
+fi
+
+squid -k reconfigure
+
+Wait_not_listen 3130
+Wait_listen     3130
+
+# TODO: check squid returning alive...
+
+iptables-save | awk '/^-A PREROUTING .* 4129$/ { $1="";  print "iptables -t nat -D", $0; exit }' | sh -
+iptables-save | awk '/^-A PREROUTING .* 4130$/ { $1="";  print "iptables -t nat -D", $0; exit }' | sh -
+
+pkill -F /var/run/squid/squid2.pid
+
+## END ##
