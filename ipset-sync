@@ -34,4 +34,7 @@ if not_empty "$list_nets"; then
 	file2ipset block_ipnets "$list_nets"
 fi
 
+test -f /usr/libexec/ipset/ipset.start-stop &&
+        /usr/libexec/ipset/ipset.start-stop save
+
 ## END ##
