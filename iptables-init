@@ -17,7 +17,7 @@ iptables -X -t nat
 
 iptables -P INPUT   ACCEPT
 iptables -P OUTPUT  ACCEPT
-iptables -P FORWARD DROP
+iptables -P FORWARD ACCEPT
 
 ipset destroy
 
