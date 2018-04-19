@@ -3,6 +3,9 @@
 use strict;
 use warnings;
 
+our $HTTPS_URL_BLOCK_COUNT = 1;
+our  $HTTP_URL_BLOCK_COUNT = 3;
+
 die "Usage: $0 domains-list dommask-list urls-list dest-domains dest-urls dest-ports\n" if @ARGV != 6;
 
 sub file2hash($) {
@@ -17,8 +20,9 @@ my $domains = file2hash($ARGV[0]);
 my $dommask = file2hash($ARGV[1]);
 my $urls    = file2hash($ARGV[2]);
 
-######  Convert URLs to domains  #######################################
+######  Convert short URLs to domains  #################################
 
+# URLs without URI and query parts...
 while (($_, undef) = each %$urls) {
 	next unless /^[^\/]+:\/+([^\/]+)\/*$/;
 	#print "URL is domain: $1, $_\n";
@@ -26,6 +30,25 @@ while (($_, undef) = each %$urls) {
 	$domains->{$1} = 1;
 	delete $urls->{$_};
 }
+
+######  Block URLs occured too often as entire domains  ################
+
+my %domcount;
+my %domains_whitelist = ( 'www.youtube.com'=>1, 'youtube.com'=>1, 'youtu.be'=>1 );
+
+map { ($domcount{$2} ||= 0)++ if /^([^\/:]+):\/+([^\/\n\r]+)/ and not $domains_whitelist{$2} and $1 eq 'https' }
+  keys %$urls;
+
+($domcount{$_} >= $HTTPS_URL_BLOCK_COUNT) && ($domains->{$_} = 1)
+  foreach keys %domcount;
+
+%domcount = ();
+
+map { ($domcount{$2} ||= 0)++ if /^([^\/:]+):\/+([^\/\n\r]+)/ and not $domains_whitelist{$2} }
+  keys %$urls;
+
+($domcount{$_} >= $HTTP_URL_BLOCK_COUNT) && ($domains->{$_} = 1)
+  foreach keys %domcount;
 
 printf "Domains after URL conversion = %s\n", scalar keys %$domains;
 printf "URLs after conversion to domains = %s\n", scalar keys %$urls;
@@ -60,6 +83,9 @@ my %cc = map { $_ => 1 } grep { !is_masked($_) } keys %$domains;
 $domains = \%cc;
 printf "Domains after deoverlapping = %s\n", scalar keys %$domains;
 
+my %ee = map { $_ => 1 } grep { /^([^\/]+):\/+([^\/\n\r]+)/ and !is_masked($2) and not $domains->{$2} } keys %$urls;
+$urls = \%ee;
+printf "URLs after deoverlapping = %s\n", scalar keys %$urls;
 
 ######  Get ports  #####################################################
 
