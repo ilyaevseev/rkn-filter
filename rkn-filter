@@ -3,6 +3,8 @@
 use strict;
 use warnings;
 
+use Net::LibIDN ':all';
+
 our $HTTPS_URL_BLOCK_COUNT = 1;
 our  $HTTP_URL_BLOCK_COUNT = 3;
 
@@ -104,6 +106,10 @@ my %ports = map { $_.' '.$pp{$_} => 1 } sort keys %pp;
 
 # Join domains and masks into single hash, masks should be prefixed by '.'
 $domains->{'.'.$_} = 1 foreach keys %$dommask;
+
+# Convert russian domain names to IDN ASCII..
+my %ff = map { (idn_to_ascii($_, 'UTF-8') || $_) => 1 } keys %$domains;
+$domains = \%ff;
 
 # Builtin quotemeta function losses UTF-8 encoding, so use our own conversion...
 my %dd = map { s/([\|\&\^\$\\\/\.\?\+\*\(\)\[\]\{\}])/\\$1/g; '^'.$_ => 1 } keys %$urls;
