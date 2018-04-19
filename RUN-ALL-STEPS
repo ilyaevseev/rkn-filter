@@ -54,8 +54,8 @@ Say "Check lines count..."
    Check_lines_count   a.lst  1000  10000
    Check_lines_count   n.lst     1    100
    Check_lines_count  dd.lst 10000 500000
-   Check_lines_count  uu.lst 10000 100000
-   Check_lines_count  pp.lst     2    100
+   Check_lines_count  uu.lst  1000  20000
+   Check_lines_count  pp.lst     2     20
 
 Say "Apply ipset..."
    $BIN/ipset-sync  a.lst  n.lst
@@ -67,6 +67,6 @@ Say "Apply Squid..."
    /usr/sbin/squid -k parse 2>&1 | grep "ERROR:" && Fail "Invalid Squid configs"
    $BIN/squid-reload
 
-Say "DONE."
+Say "ALL DONE."
 
 ## END ##
