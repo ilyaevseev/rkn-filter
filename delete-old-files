@@ -9,4 +9,16 @@ cd "$(dirname "$0")/../old/"
 
 ls4sweep 10:1,10:3,30:10,30:30,30:90,30:360 *.zip | grep -v "^$(date +%Y-%m-%d)" | xargs -r /bin/rm
 
+########################################################################
+
+cd "$(dirname "$0")../logs/"
+
+TSTAMP="$(date -d '1 day ago' +%Y-%m-%d)"
+
+test '!' -s "$TSTAMP.tgz" &&
+find . -type f -name "${TSTAMP}*.log"         | grep -q '' &&
+find . -type f -name "${TSTAMP}*.log" -print0 | tar czf "$TSTAMP.tgz" --null -T - &&
+find . -type f -name "${TSTAMP}*.log" -delete &&
+find . -type f -mtime +1000 -delete
+
 ## END ##
