@@ -1,0 +1,12 @@
+#!/bin/sh -e
+
+# Should be added to crontab:
+#  30 23 * * * root /home/rkn/bin/delete-old-files 2>&1 | mail -E -s "Delete-old-files failed on $(hostname -f)" admins
+
+export PATH="$PATH:/usr/local/bin"  # ..path to ls4sweep
+
+cd "$(dirname "$0")/../old/"
+
+ls4sweep 10:1,10:3,30:10,30:30,30:90,30:360 *.zip | grep -v "^$(date +%Y-%m-%d)" | xargs -r /bin/rm
+
+## END ##
