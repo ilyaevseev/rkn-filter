@@ -3,9 +3,18 @@
 * [rkn-fetch](rkn-fetch) -- check, get or update registry from RKN portal
 * [rkn-parse](rkn-parse) -- read registry XML, produce lists of IPaddrs, IPnets, URLs, domains and domain-masks
 * [rkn-filter](rkn-filter) -- read lists of URLs, domains and domain-masks, skip overlapped settings, produce Squid configs of URLs and domains.
+* [rkn-filter2](rkn-filter2) -- read lists of IP-addrs and IP-nets, produce Squid config without overlappings.
 * [ipset-sync](ipset-sync) -- loads IPaddrs and IPnets into firewall
 * [iptables-init](iptables-init) -- initializes firewall rules with empty ipsets
 * [RUN-ALL-STEPS](RUN-ALL-STEPS) -- runs all scripts above in the right order
+
+## Perl requirements
+
+* MIME::Base64
+* SOAP::Lite
+* Net::LibIDN
+* Net::CIDR::Lite
+* XML::Simple
 
 ## rkn-fetch
 
@@ -35,6 +44,13 @@
 * dest-urls: output URLs list is Squid format, without overlapped items
 * dest-ports: output list of ports used in URLs, including 80, 443 and non-standard ports
 
+## rkn-filter2
+
+* Usage: `rkn-filter2 ipfile netfile > aclfile`
+* ipfile = input listing of IPaddrs, produced by rkn-parse
+* netfile = input listing of IPnets, produced by rkn-parse
+* aclfile = output listing in Squid format, without overlapped items
+
 ## Dirs
 
 * /home/rkn
@@ -44,3 +60,8 @@
 * /home/rkn/download -- stores actual registry and temporary files
 * /home/rkn/old -- stores archive of old registries
 
+## Cron
+
+* `MAILTO=admins`
+* `*/30 * * * * root /home/rkn/bin/RUN-ALL-STEPS`
+* `30  23 * * * root /home/rkn/bin/delete-old-files 2>&1 | mail -E -s "Delete-old-files failed on $(hostname -f)" admins`

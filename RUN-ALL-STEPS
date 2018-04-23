@@ -49,13 +49,15 @@ Say "Parse..."
    find . -type f -name "*.lst" -delete
    $BIN/rkn-parse   dump.xml   u.lst d.lst m.lst a.lst n.lst
    $BIN/rkn-filter  d.lst m.lst u.lst   dd.lst uu.lst pp.lst
+   $BIN/rkn-filter2 a.lst n.lst  > an.lst
 
 Say "Check lines count..."
-   Check_lines_count   a.lst  1000  10000
-   Check_lines_count   n.lst     1    100
-   Check_lines_count  dd.lst 10000 500000
-   Check_lines_count  uu.lst  1000  20000
-   Check_lines_count  pp.lst     2     20
+   Check_lines_count   a.lst  1000  10000  # ipaddrs
+   Check_lines_count   n.lst     1    100  # ipnets
+   Check_lines_count  dd.lst 10000 500000  # domains
+   Check_lines_count  uu.lst  1000  20000  # urls
+   Check_lines_count  pp.lst     2     20  # tcp ports
+   Check_lines_count  an.lst  1000  10000  # non-intersected CIDRs
 
 Say "Apply ipset..."
    $BIN/ipset-sync  a.lst  n.lst
@@ -63,6 +65,7 @@ Say "Apply ipset..."
 Say "Apply Squid..."
    cp -p  dd.lst  /etc/squid/blacklist_domains.txt
    cp -p  uu.lst  /etc/squid/blacklist_urls.txt
+   cp -p  an.lst  /etc/squid/blacklist_ipaddrs.txt
 
    /usr/sbin/squid -k parse 2>&1 | grep "ERROR:" && Fail "Invalid Squid configs"
    $BIN/squid-reload

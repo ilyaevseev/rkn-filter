@@ -1,0 +1,23 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Net::CIDR::Lite;
+
+die "Usage: $0 ipaddrs.lst ipnets.lst\n" if @ARGV != 2;
+
+my $cidr = Net::CIDR::Lite->new;
+
+open F, $ARGV[0] or die "Cannot open $ARGV[0]: $!\n";
+map { chomp; $cidr->add_ip($_) } <F>;
+close F;
+
+open F, $ARGV[1] or die "Cannot open $ARGV[1]: $!\n";
+map { chomp; $cidr->add($_) } <F>;
+close F;
+
+my $a = $cidr->list;
+print "$_\n" foreach @$a;
+
+## END ##
