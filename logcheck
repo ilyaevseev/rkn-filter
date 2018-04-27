@@ -1,0 +1,21 @@
+#!/bin/sh -e
+
+COMMAND="$1"
+
+Ok()   { test "$COMMAND" = "zbxcheck" && echo 1 || echo "OK"               ;                                               exit 0; }
+Fail() { test "$COMMAND" = "zbxcheck" && echo 0 || echo "ERROR in $LOG: $@"; logger -t ${0##*/} -p user.err -- "$LOG: $@"; exit 1; }
+
+LOGDIR="$(dirname "$(cd "$(dirname "$0")" && pwd)")/logs"  #"
+
+LOG="$(find "$LOGDIR" -type f -name '*.log' -mmin -100 2>/dev/null | sort -nr | head -1)"
+
+test -z "$LOG" && Fail "cannot find logfile"
+
+grep -qwi "ERROR"    "$LOG" && Fail "errors detected."
+grep -qwi "WARNING"  "$LOG" && Fail "warnings detected."
+grep -q   "ALL DONE" "$LOG" && Ok
+grep -q   "FRESH_OK" "$LOG" && Ok
+
+Fail "status lost"
+
+## END ##
