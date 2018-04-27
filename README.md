@@ -15,6 +15,7 @@
 * Net::LibIDN
 * Net::CIDR::Lite
 * XML::Simple
+* URI::Encode
 
 ## rkn-fetch
 

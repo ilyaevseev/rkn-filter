@@ -4,6 +4,7 @@ use strict;
 use warnings;
 
 use Net::LibIDN ':all';
+use URI::Encode qw/uri_decode/;
 
 our $HTTPS_URL_BLOCK_COUNT = 1;
 our  $HTTP_URL_BLOCK_COUNT = 3;
@@ -22,9 +23,15 @@ my $domains = file2hash($ARGV[0]);
 my $dommask = file2hash($ARGV[1]);
 my $urls    = file2hash($ARGV[2]);
 
-######  Convert short URLs to domains  #################################
 
-# URLs without URI and query parts...
+######  Strip anchor part from URLs  ###################################
+
+my %hh = map { s/\#.*//; $_ => 1 } keys %$urls;
+$urls = \%hh;
+
+
+######  Convert short URLs without URI and query parts to domains  #####
+
 while (($_, undef) = each %$urls) {
 	next unless /^[^\/]+:\/+([^\/]+)\/*$/;
 	#print "URL is domain: $1, $_\n";
@@ -33,7 +40,8 @@ while (($_, undef) = each %$urls) {
 	delete $urls->{$_};
 }
 
-######  Block URLs occured too often as entire domains  ################
+
+######  Group URLs by domain and block entire domains  #################
 
 my %domcount;
 my %domains_whitelist = ( 'www.youtube.com'=>1, 'youtube.com'=>1, 'youtu.be'=>1 );
@@ -89,6 +97,7 @@ my %ee = map { $_ => 1 } grep { /^([^\/]+):\/+([^\/\n\r]+)/ and !is_masked($2) a
 $urls = \%ee;
 printf "URLs after deoverlapping = %s\n", scalar keys %$urls;
 
+
 ######  Get ports  #####################################################
 
 my %pp = ( 80 => 'http', 443 => 'https' );
@@ -111,8 +120,18 @@ $domains->{'.'.$_} = 1 foreach keys %$dommask;
 my %ff = map { (idn_to_ascii($_, 'UTF-8') || $_) => 1 } keys %$domains;
 $domains = \%ff;
 
+# Bugfix: strip finishing dot from domain names
+my @gg = grep { /\.$/ } keys %$domains;
+delete $domains->{$_} foreach @gg;
+chop @gg;
+$domains->{$_} = 1 foreach @gg;
+
+# Convert %xx to UTF-8
+my %gg = map { uri_decode($_) => 1 } keys %$urls;
+$urls = \%gg;
+
 # Builtin quotemeta function losses UTF-8 encoding, so use our own conversion...
-my %dd = map { s/([\|\&\^\$\\\/\.\?\+\*\(\)\[\]\{\}])/\\$1/g; '^'.$_ => 1 } keys %$urls;
+my %dd = map { s/([\|\&\^\$\\\/\.\?\+\*\(\)\[\]\{\}\ ])/\\$1/g; '^'.$_ => 1 } keys %$urls;
 $urls = \%dd;
 
 
