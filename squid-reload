@@ -8,7 +8,7 @@ Wait_listen()     { for n in `seq 1 30`; do ss -ntl "sport = :$1" | grep -q ^LIS
 Wait_not_listen() { for n in `seq 1 30`; do ss -ntl "sport = :$1" | grep -q ^LISTEN || return 0; sleep 1; done; echo "Timeout: wait_not_listen $1"; return 1; }
 
 echo "Try to start second Squid..."
-if test -s "$CONFIG" && squid -f "$CONFIG" && Wait_listen "4130" && sleep 5; then
+if test -s "$CONFIG" && squid -f "$CONFIG" && Wait_listen "4130" && sleep 15; then
     echo "Redirect firewall to second Squid..."
     iptables-save | awk '/^-A PREROUTING .* 3129$/ { $1=$NF=""; print "iptables -t nat -I", $0, "4129"; exit }' | sh -
     iptables-save | awk '/^-A PREROUTING .* 3130$/ { $1=$NF=""; print "iptables -t nat -I", $0, "4130"; exit }' | sh -
@@ -20,7 +20,7 @@ squid -k reconfigure
 Wait_not_listen 3130
 Wait_listen     3130
 
-test  -s /var/run/squid/squid2.pid && echo "Kill second squid..." && sleep 5
+test  -s /var/run/squid/squid2.pid && echo "Kill second squid..." && sleep 15
 pkill -F /var/run/squid/squid2.pid
 
 iptables-save | awk '/^-A PREROUTING .* 4129$/ { $1="";  print "iptables -t nat -D", $0; exit }' | sh -
