@@ -24,10 +24,13 @@ my $dommask = file2hash($ARGV[1]);
 my $urls    = file2hash($ARGV[2]);
 
 
-######  Strip anchor part from URLs  ###################################
+######  Strip anchor part and port from URLs  ##########################
 
 my %hh = map { s/\#.*//; $_ => 1 } keys %$urls;
 $urls = \%hh;
+
+my %ii = map { ( /^([^\/:]+:\/+[^\/:]+):\d+(.*)$/ ? $1.$2 : $_ ) => 1 } keys %$urls;
+$urls = \%ii;
 
 
 ######  Convert short URLs without URI and query parts to domains  #####
@@ -119,6 +122,10 @@ $domains->{'.'.$_} = 1 foreach keys %$dommask;
 # Convert russian domain names to IDN ASCII..
 my %ff = map { (idn_to_ascii($_, 'UTF-8') || $_) => 1 } keys %$domains;
 $domains = \%ff;
+
+# Convert russian domain names or URLs to IDN ASCII..
+my %jj = map { ( /^([^\/:]+[:\/]+)([^\/:]+)(.*)$/ ? $1.idn_to_ascii($2, 'UTF-8').$3 : $_ ) => 1 } keys %$urls;
+$urls = \%jj;
 
 # Bugfix: strip finishing dot from domain names
 my @gg = grep { /\.$/ } keys %$domains;
