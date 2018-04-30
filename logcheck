@@ -7,7 +7,7 @@ Fail() { test "$COMMAND" = "zbxcheck" && echo 0 || echo "ERROR in $LOG: $@"; log
 
 LOGDIR="$(dirname "$(cd "$(dirname "$0")" && pwd)")/logs"  #"
 
-LOG="$(find "$LOGDIR" -type f -name '*.log' -mmin -100 2>/dev/null | sort -nr | head -1)"
+LOG="$(find "$LOGDIR" -type f -name '*.log' -mmin -100 -mmin +10 2>/dev/null | sort -nr | head -1)"
 
 test -z "$LOG" && Fail "cannot find logfile"
 
