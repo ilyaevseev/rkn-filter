@@ -36,6 +36,7 @@ Say "Check another instances..."
 
 Say "Fetch..."
    $BIN/rkn-fetch "$KEY" "$SIG" update result.zip
+   test "$1" != "force" &&
    grep -q "^FRESH_OK" "$LOG" && Say "SKIPPED." && exit 0
    unzip -t result.zip || Fail "ZIP check failed."
 
