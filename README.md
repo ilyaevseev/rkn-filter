@@ -8,6 +8,14 @@
 * [iptables-init](iptables-init) -- initializes firewall rules with empty ipsets
 * [RUN-ALL-STEPS](RUN-ALL-STEPS) -- runs all scripts above in the right order
 
+## Software requirements
+
+* squid (built with SSL support)
+* unzip
+* ls4sweep
+* iptables-services
+* ipset-service
+
 ## Perl requirements
 
 * MIME::Base64
