@@ -53,12 +53,12 @@ Say "Parse..."
    $BIN/rkn-filter2 a.lst n.lst  > an.lst
 
 Say "Check lines count..."
-   Check_lines_count   a.lst  1000  10000  # ipaddrs
-   Check_lines_count   n.lst     1    100  # ipnets
-   Check_lines_count  dd.lst 10000 500000  # domains
-   Check_lines_count  uu.lst  1000  20000  # urls
-   Check_lines_count  pp.lst     2     20  # tcp ports
-   Check_lines_count  an.lst  1000  10000  # non-intersected CIDRs
+   Check_lines_count   a.lst  5000  15000  # ipaddrs
+   Check_lines_count   n.lst    50    100  # ipnets
+   Check_lines_count  dd.lst 50000 150000  # domains
+   Check_lines_count  uu.lst  5000  10000  # urls
+   Check_lines_count  pp.lst     2     10  # tcp ports
+   Check_lines_count  an.lst  5000  10000  # non-intersected CIDRs
 
 Say "Apply ipset..."
    $BIN/ipset-sync  a.lst  n.lst
