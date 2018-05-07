@@ -47,4 +47,9 @@ iptables -t nat -A POSTROUTING    -o "$EXT_IFACE" -j SNAT --to-source "$EXT_IPAD
 iptables -t nat -A PREROUTING '!' -i "$EXT_IFACE" -p tcp -m multiport --dports "$HTTP_PORTS"  -j REDIRECT --to-ports 3129
 iptables -t nat -A PREROUTING '!' -i "$EXT_IFACE" -p tcp -m multiport --dports "$HTTPS_PORTS" -j REDIRECT --to-ports 3130
 
+######  Save  ##################################################
+
+test -f /usr/libexec/iptables/iptables.init &&
+        /usr/libexec/iptables/iptables.init save
+
 ## END ##
