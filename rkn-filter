@@ -24,6 +24,13 @@ my $dommask = file2hash($ARGV[1]);
 my $urls    = file2hash($ARGV[2]);
 
 
+######  Move dommasks from domains  ####################################
+
+my @dm = grep { /^\./ } keys %$domains;
+delete $domains->{$_}  foreach @dm;
+$dommask->{'*'.$_} = 1 foreach @dm;
+
+
 ######  Strip anchor part and port from URLs  ##########################
 
 my %hh = map { s/\#.*//; $_ => 1 } keys %$urls;
