@@ -7,7 +7,10 @@ export PATH="$PATH:/usr/local/bin"  # ..path to ls4sweep
 
 cd "$(dirname "$0")/../old/"
 
-ls4sweep 10:1,10:3,30:10,30:30,30:90,30:360 *.zip | grep -v "^$(date +%Y-%m-%d)" | xargs -r /bin/rm
+# Sweep old files only if fresh files are present, i.e. process is not broken...
+if find . -type f -name '*.zip' -mmin -1200 | grep -q ''; then
+  ls4sweep 10:1,10:3,30:10,30:30,30:90,30:360 *.zip | grep -v "^$(date +%Y-%m-%d)" | xargs -r /bin/rm
+fi
 
 ########################################################################
 
