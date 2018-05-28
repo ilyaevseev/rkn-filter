@@ -1,0 +1,89 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use XML::Simple;
+use Data::Dumper;
+
+die "Usage: $0 dump.xml\n" if @ARGV < 1;
+
+$XML::Simple::PREFERRED_PARSER = 'XML::Parser';
+
+my $ref = XMLin(shift @ARGV);
+
+sub hash2file($$) {
+	my ($data, $filename) = @_;
+	return if not $filename;
+	open F, '>', $filename or die "Cannot create file $filename: $!\n";
+	binmode F, ":utf8";
+	print F "$_\n" foreach sort keys %$data;
+	close F;
+}
+
+my ($urlfile, $domfile, $dommask_file, $ipfile, $netfile) = @ARGV;
+#print "Result = ",Dumper($ref),"\n"; exit;
+
+my %urls;
+my %domains;
+my %domain_masks;
+my %ipaddrs;
+my %ipnets;
+
+sub read_values($) {
+	my $in = shift;
+	#eturn @$in if ref($in) eq 'ARRAY';
+	return ()   if ref($in) eq 'HASH';
+	return grep { /^.+$/ } split /[\r\n]+/, $in;
+}
+
+while (my ($id, $item) = each %{$ref->{content}}) {
+
+	my @u = read_values $item->{url};
+	foreach (@u) {
+		if (/^https?:\/\//) {
+			$urls{$_} = 1;
+		} elsif (/^.+(https?:\/\/.+)$/) {
+			warn "Fix URL \"$_\" for item $id\n";
+			$urls{$1} = 1;
+		} else {
+			warn "Bad URL \"$_\" for item $id\n";
+		}
+	}
+	next if @u;
+
+	my @d = read_values $item->{domain};
+	foreach(@d) {
+		if (/^\*/) {
+			$domain_masks{$_} = 1;
+		} else {
+			$domains{$_} = 1;
+		}
+	}
+	next if @d;
+
+	my @a = read_values $item->{ip};
+	foreach my $a (@a) {
+		my @b = split /,\s*/, $a;
+		foreach (@b) {
+			if (/^\d+\.\d+\.\d+\.\d+\/\d+$/) {
+				$ipnets{$_} = $_;
+			} elsif (/^\d+\.\d+\.\d+\.\d+$/) {
+				$ipaddrs{$_} = $;
+			} else {
+				warn "Bad IP \"$_\" for item $id\n";
+			}
+		}
+	}
+	next if @a;
+
+	warn "Wrong item $id\n";
+}
+
+hash2file(\%urls,         $urlfile);
+hash2file(\%domains,      $domfile);
+hash2file(\%domain_masks, $dommask_file);
+hash2file(\%ipaddrs,      $ipfile);
+hash2file(\%ipnets,       $netfile);
+
+## END ##

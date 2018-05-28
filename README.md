@@ -11,7 +11,8 @@
 ## Software requirements
 
 * squid (built with SSL support)
-* unzip
+* zip (for Antizapret and Rublacklist modes only)
+* unzip (for default mode only)
 * ls4sweep
 * iptables-services
 * ipset-service

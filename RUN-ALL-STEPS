@@ -1,5 +1,7 @@
 #!/bin/sh
 
+MODE="$1"  # "", force, antizapret, rublacklist
+
 T=$(date +%Y-%m-%d-%H%M)
 
 TOP="$(cd "$(dirname "$0")/.." && pwd)" #"
@@ -22,6 +24,47 @@ Check_lines_count() {
     Fail "Wrong lines count in $1, must be between $2 and $3: $count"
 }
 
+Fetch() {
+    local FILE="$1" MIN="$2" MAX="$3" URL="$4" SED="$5"
+
+    wget -qO- "$URL" | sed "$SED" > "$FILE.new"
+
+    if test -s "$FILE" && diff -q "$FILE" "$FILE.new" >/dev/null 2>&1; then
+        /bin/rm -f "$FILE.new"
+        echo "SKIPPED."
+        exit 0
+    fi
+
+    mv "$FILE.new" "$FILE"
+    Check_lines_count  "$FILE"  "$MIN"  "$MAX"
+    zip "$OLD"         "$FILE"
+}
+
+Fetch_default() {
+    $BIN/rkn-fetch "$KEY" "$SIG" update result.zip
+
+    if ! test -s result.zip; then
+        /bin/rm -f result.zip
+        Fail "Empty ZIP."
+    fi
+
+    if test "$MODE" != "force" && grep -q "^FRESH_OK" "$LOG"; then
+        Say "SKIPPED."
+        exit 0
+    fi
+
+    unzip -t result.zip || Fail "ZIP check failed."
+
+    Say "Extract..."
+
+    cp -p result.zip "$OLD"
+
+    #funzip < result.zip | sed 's,><,>\n<,g' > dump.xml
+    unzip -p result.zip dump.xml | sed 's,><,>\n<,g' > dump.xml
+
+    Check_lines_count dump.xml 100000 10000000
+}
+
 ######  Main  ##################################################
 
 exec 1>"$LOG"
@@ -35,20 +78,23 @@ Say "Check another instances..."
    test "$procnum" -gt 1 && Fail "$0 seems already running."
 
 Say "Fetch..."
-   $BIN/rkn-fetch "$KEY" "$SIG" update result.zip
-   test "$1" != "force" &&
-   grep -q "^FRESH_OK" "$LOG" && Say "SKIPPED." && exit 0
-   unzip -t result.zip || Fail "ZIP check failed."
-
-Say "Extract..."
-   cp -p result.zip "$OLD"
-   #funzip < result.zip | sed 's,><,>\n<,g' > dump.xml
-   unzip -p result.zip dump.xml | sed 's,><,>\n<,g' > dump.xml
-   Check_lines_count dump.xml 100000 10000000
+   case "$MODE" in
+   saved       ) ;;
+   antizapret  ) Fetch antizapret.xml   900000  10000000  'http://api.antizapret.info/all.php?type=xml'         's,><,>\n<,g' ;;
+   rublacklist ) Fetch rublacklist.json  50000    300000  'https://reestr.rublacklist.net/api/v2/current/json'  's,{"postanovlenie":,\n{"postanovlenie":,g' ;;
+   * )           Fetch_default ;;
+   esac
 
 Say "Parse..."
    find . -type f -name "*.lst" -delete
-   $BIN/rkn-parse   dump.xml   u.lst d.lst m.lst a.lst n.lst
+
+   case "$MODE" in
+   antizapret  ) $BIN/rkn-parse-antizapret   antizapret.xml    u.lst d.lst m.lst a.lst n.lst ;;
+   rublacklist ) $BIN/rkn-parse-rublacklist  rublacklist.json  u.lst d.lst m.lst a.lst n.lst ;;
+   * )           $BIN/rkn-parse              dump.xml          u.lst d.lst m.lst a.lst n.lst ;;
+   esac
+
+Say "Filter..."
    $BIN/rkn-filter  d.lst m.lst u.lst   dd.lst uu.lst pp.lst
    $BIN/rkn-filter2 a.lst n.lst  > an.lst
 

@@ -1,0 +1,79 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use utf8;
+use JSON;
+use Data::Dumper;
+
+binmode(STDERR,':utf8');
+
+die "Usage: $0 rublacklist.json\n" if @ARGV < 1;
+
+sub read_jsonfile($) {
+	open F, $_[0] or die "Cannot open JSON file $_[0]: $!\n";
+	local $/ = undef;
+	my $jsonref = decode_json <F>;
+	close F;
+	$jsonref;
+}
+
+sub hash2file($$) {
+	my ($data, $filename) = @_;
+	return if not $filename;
+	open F, '>', $filename or die "Cannot create file $filename: $!\n";
+	binmode F, ":utf8";
+	print F "$_\n" foreach sort keys %$data;
+	close F;
+}
+
+my $ref = read_jsonfile(shift @ARGV);
+my ($urlfile, $domfile, $dommask_file, $ipfile, $netfile) = @ARGV;
+#print "Result = ",Dumper($ref),"\n"; exit;
+
+my %urls;
+my %domains;
+my %domain_masks;
+my %ipaddrs;
+my %ipnets;
+
+while (my ($date, $data) = each %$ref) {
+   foreach my $item (@$data) {
+	my $id = $item->{postanovlenie} || -1;
+
+	if (my $u = $item->{link}) {
+		$urls{$_} = 1 foreach map { s/^"+//; s/"+$//; $_ } split / \| /, $u;
+	} elsif (my $d = $item->{page}) {
+		if ($d =~ /^\*/) {
+			$domain_masks{$d} = 1;
+		} else {
+			$domains{$d} = 1;
+		}
+	} elsif ($a = $item->{ip}) {
+		unless (ref($a) eq 'ARRAY') {
+			warn "Bad IP in $id, skipped.\n";
+			next;
+		}
+		foreach (@$a) {
+			if (/^\d+\.\d+\.\d+\.\d+\/\d+$/) {
+				$ipnets{$_} = 1;
+			} elsif (/^\d+\.\d+\.\d+\.\d+$/) {
+				$ipaddrs{$_} = 1;
+			} else {
+				warn "Bad IP $_ in $id, skipped.\n";
+			}
+		}
+	} else {
+		warn "Empty item $id\n";
+	}
+   }
+}
+
+hash2file(\%urls,         $urlfile);
+hash2file(\%domains,      $domfile);
+hash2file(\%domain_masks, $dommask_file);
+hash2file(\%ipaddrs,      $ipfile);
+hash2file(\%ipnets,       $netfile);
+
+## END ##
