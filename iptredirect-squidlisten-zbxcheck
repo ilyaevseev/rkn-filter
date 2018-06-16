@@ -1,9 +1,11 @@
 #!/bin/sh
 
-A="$(iptables-save |        egrep -c "^-A PREROUTING .* -j REDIRECT --to-ports ([0-9]+)$")" #"
-B="$(iptables-save | gawk 'match($0, "^-A PREROUTING .* -j REDIRECT --to-ports ([0-9]+)$", m) \
-	{ print "ss -Hnto state listening sport = :" m[1] }' | sh | wc -l)" #'
+for p in $(sudo /sbin/iptables-save |
+           gawk 'match($0, "^-A PREROUTING .* -j REDIRECT --to-ports ([0-9]+)$", m) { print m[1] }')
+do
+	ss -Hntl "sport = :$p" | grep -q '' || { echo $p; exit; }
+done
 
-expr "$A" - "$B"
+echo 0
 
 ## END ##
