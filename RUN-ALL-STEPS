@@ -30,8 +30,10 @@ Fetch() {
     wget -qO- "$URL" | sed "$SED" > "$FILE.new"
 
     if test -s "$FILE" && diff -q "$FILE" "$FILE.new" >/dev/null 2>&1; then
+        echo "FRESH_OK"
         /bin/rm -f "$FILE.new"
-        echo "SKIPPED."
+
+        Say "SKIPPED."
         exit 0
     fi
 
@@ -102,7 +104,7 @@ Say "Check lines count..."
    Check_lines_count   a.lst  5000  50000  # ipaddrs
    Check_lines_count   n.lst    20    200  # ipnets
    Check_lines_count  dd.lst 30000 150000  # domains
-   Check_lines_count  uu.lst  5000  50000  # urls
+   Check_lines_count  uu.lst  3000  30000  # urls
    Check_lines_count  pp.lst     2     10  # tcp ports
    Check_lines_count  an.lst  5000  50000  # non-intersected CIDRs
 
